@@ -12,10 +12,10 @@
 using namespace std;
 using namespace rocksdb;
 
-std::string kDBPath = "/home/tramboo/codelab/lightgraph/data/db_test";
+std::string kDBPath = "../data/db_test";
 
 int main() {
-    cout << "Inicio ejemplo simple" << endl;
+    cout << "Test Rocksdb." << endl;
     DB* db;
     Options options;
     // Optimize RocksDB. This is the easiest way to get RocksDB to perform well
@@ -53,7 +53,7 @@ int main() {
 
     delete db;
 
-    cout << "Si llegue hasta aca todo andubo bien :)" << endl;
+    cout << "Test passed!" << endl;
 
     return 0;
 }
