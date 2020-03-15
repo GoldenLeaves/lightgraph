@@ -9,5 +9,4 @@ include_directories(${PROJECT_SOURCE_DIR}/include/)
 
 add_executable(testdb tests/testdb.cc include/ldb.hh src/ldb.cc include/schema.hh src/schema.cc include/properties.hh src/properties.cc)
 
-target_link_libraries(testdb -lrocksdb)
-TARGET_LINK_LIBRARIES(testdb -ldl)
+target_link_libraries(testdb -lrocksdb -ljsoncpp -ldl)

@@ -20,8 +20,8 @@ public:
     // Add a new key/value property.
     // If the added key is existed, the new value will overwrite the old value.
     void AddProperty(const std::string& key, const std::string& value);
-    // Append a new key/value property.
-    // If the added key is existed, this property will be converted to a array property
+    // Append a new value to a property.
+    // If the added key is existed, this property will be converted to an array property
     //  and the new value will be appended to the array of this property.
     // If the added key is not existed, this function will add a new key/value_array property directly
     //  and set the first array member to the new value.
@@ -31,7 +31,6 @@ public:
     void AddArrayProperty(const std::string& key, const std::vector<std::string>& values);
 
     std::string AsString();
-
     std::string GetValueBy(const std::string& key);
 };
 

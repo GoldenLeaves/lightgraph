@@ -27,18 +27,20 @@ typedef std::string Elabel;
 //    ~ELabel() = default;
 //};
 
+class LDB;
+
 // The label schema of edges.
 class Schema {
     std::set<std::string> _label_set;
 public:
     Schema() = default;
     ~Schema() = default;
-
     void AddEdgeLabel(std::string& label);
     void AddEdgeLabel(const char* label);
     void AddEdgeLabels(std::vector<std::string>& label_lists);
-
+private:
     std::unordered_map<std::string, int>&& InnerCoding();
+    friend class LDB;
 };
 
 } // end namespace lightgraph

@@ -2,10 +2,11 @@
 // Created by tramboo on 2020/2/24.
 //
 
+#include "schema.hh"
+#include "properties.hh"
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
 #include <rocksdb/slice.h>
-#include "schema.hh"
 
 namespace lightgraph
 {
