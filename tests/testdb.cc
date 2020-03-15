@@ -3,6 +3,7 @@
 //
 #include <string>
 #include <iostream>
+#include <ldb.hh>
 
 #include "rocksdb/db.h"
 #include "rocksdb/slice.h"

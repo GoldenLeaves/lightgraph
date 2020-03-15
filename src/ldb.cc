@@ -7,8 +7,16 @@
 namespace lightgraph
 {
 
-LStatus LDB::Open(const LOptions& loptions, const std::string& name) {
-    return rocksdb::DB::Open(loptions, name, &db);
+LDB::~LDB() {
+    delete _db;
+}
+
+LStatus LDB::Open(const LOptions& loptions, const std::string& dbpath) {
+    return rocksdb::DB::Open(loptions, dbpath, &_db);
+}
+
+void LDB::SetSchema(Schema &schema) {
+    _label_id_map = schema.InnerCoding();
 }
 
 } // end namespace lightgraph
