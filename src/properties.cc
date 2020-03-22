@@ -6,28 +6,41 @@
 
 namespace lightgraph {
 
-Properties Properties::CreateProperties(std::string &json_str) {
+Properties Properties::CreateProperties(const std::string &json_str) {
     Json::Reader reader;
     Json::Value root;
-    reader.parse(json_str, root);
-    return Properties(root);
+    if(reader.parse(json_str, root)) {
+        return Properties(root);
+    }
+    return Properties();
 }
 
-void Properties::AddProperty(const std::string &key, const std::string& value) {
+bool Properties::LoadFrom(const std::string &json_str) {
+    Json::Reader reader;
+    return reader.parse(json_str, _root);
+}
+
+bool Properties::AddProperty(const std::string &key, const std::string& value) {
+    if(key.empty()) return false;
     _root[key] = value;
+    return true;
 }
 
-void Properties::AppendProperty(const std::string &key, const std::string &value) {
+bool Properties::AppendProperty(const std::string &key, const std::string &value) {
+    if(key.empty()) return false;
     _root[key].append(value);
+    return true;
 }
 
-void Properties::AddArrayProperty(const std::string &key, const std::vector<std::string> &values) {
+bool Properties::AddArrayProperty(const std::string &key, const std::vector<std::string> &values) {
+    if(key.empty()) return false;
     for(auto& v: values) {
         _root[key].append(v);
     }
+    return true;
 }
 
-std::string Properties::AsString() {
+std::string Properties::AsString() const {
     return _root.asString();
 }
 
