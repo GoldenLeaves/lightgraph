@@ -2,16 +2,29 @@
 // Created by tramboo on 2020/2/24.
 //
 
-#include "typedef.hh"
+#include <utility>
 #include "schema.hh"
 #include "properties.hh"
 
 namespace lightgraph
 {
 
+struct GraphDelta {
+    __vertex_id_t src;
+    std::string edge_label;
+    __vertex_id_t dst;
+    __time_t t;
+    OpFlag op;
+
+    GraphDelta(__vertex_id_t src, std::string edge_label, __vertex_id_t dst, __time_t time, OpFlag op_flag)
+        : src(src), edge_label(std::move(edge_label)), dst(dst), t(time), op(op_flag) {}
+    GraphDelta(__vertex_id_t src, const char* edge_label, __vertex_id_t dst, __time_t time, OpFlag op_flag)
+            : src(src), edge_label(edge_label), dst(dst), t(time), op(op_flag) {}
+};
+
 class LDB {
     rocksdb::DB* _db;
-    std::unordered_map<std::string, int> _edge_label_id_map;
+    LabelIdMap _edge_label_id_map;
 
     enum BlockId: __block_id_t {
         /* Vertex block
@@ -60,13 +73,13 @@ class LDB {
         InDeltaByT = 5,
     };
     const int VertexKeyLen = sizeof(__machine_t) + sizeof(__vertex_id_t);
-    const int DeltaKeyLen = sizeof(__block_id_t) + sizeof(__vertex_id_t)*2
+    const int DeltaKeyLen = sizeof(__block_id_t) + sizeof(__vertex_id_t) * 2
             + sizeof(__label_id_t) + sizeof(__time_t) + sizeof(__op_flag_t);
 
 public:
     // Construction
     LDB(): _db(nullptr) {}
-    explicit LDB(Schema& schema)
+    explicit LDB(const Schema& schema)
         : _db(nullptr), _edge_label_id_map(schema.InnerCoding()) {}
     // No copying allowed
     LDB(const LDB&) = delete;
@@ -77,16 +90,27 @@ public:
 
     // Setup
     LStatus Open(const LOptions& loptions, const std::string& dbpath);
-    void SetSchema(Schema& schema);
+    void SetSchema(const Schema& schema);
 
     // Vertex Operations
     LStatus VertexPut(__vertex_id_t vertex_id, const Properties& prop,
-            const LWriteOptions& options = rocksdb::WriteOptions());
+            const LWriteOptions& options = LWriteOptions());
+    LStatus VertexWriteBatch(const std::vector<std::pair<__vertex_id_t, Properties> >& vertices,
+            const LWriteOptions& options = LWriteOptions());
     LStatus VertexGet(__vertex_id_t vertex_id, Properties* props,
-            const LWriteOptions& options = rocksdb::WriteOptions());
+            const LReadOptions& options = LReadOptions());
 
     // Delta Operations
+    LStatus DeltaPut(const GraphDelta& delta, const Properties& prop,
+            const LWriteOptions& options = LWriteOptions());
 
+
+private:
+    inline __label_id_t GetInnerLabelId(const std::string& label);
+    inline LSlice GetInnerKeyOfVertex(__vertex_id_t vertex_id);
+    inline LSlice GetInnerKeyOfTimeSortedDelta(const GraphDelta& delta);
+    inline LSlice GetInnerKeyOfOutDeltaByE(const GraphDelta& delta);
+    inline LSlice GetInnerKeyOfInDeltaByE(const GraphDelta& delta);
 };
 
 } // end namespace lightgraph

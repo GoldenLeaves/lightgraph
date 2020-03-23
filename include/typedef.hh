@@ -16,6 +16,11 @@ typedef rocksdb::Options LOptions;
 typedef rocksdb::Slice LSlice;
 typedef rocksdb::WriteOptions LWriteOptions;
 typedef rocksdb::ReadOptions LReadOptions;
+typedef rocksdb::WriteBatch LWriteBatch;
+
+//// typedef of vertex label and edge label.
+//typedef std::string VLabel;
+//typedef std::string Elabel;
 
 // Length type
 typedef __uint64_t __machine_t;
@@ -24,6 +29,11 @@ typedef __uint64_t __vertex_id_t;
 typedef __uint32_t __label_id_t;
 typedef __uint64_t __time_t;
 typedef __uint16_t __op_flag_t;
+
+enum OpFlag: __op_flag_t {
+    Insert = 1,
+    Delete = 0,
+};
 
 
 }
