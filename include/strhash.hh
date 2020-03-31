@@ -29,5 +29,10 @@ struct StrEqualFunc
     bool operator()(const std::string& a, const std::string& b) const;
 };
 
+struct StrCmpFunc
+{
+    bool operator()(const std::string& a, const std::string& b) const;
+};
+
 
 } // end namespace lightgraph

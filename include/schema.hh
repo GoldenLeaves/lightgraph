@@ -13,11 +13,20 @@ namespace lightgraph
 {
 
 class LDB;
-typedef std::unordered_map<std::string, __label_id_t, StrHashFunc, StrEqualFunc> LabelIdMap;
+
+struct InnerMap {
+    std::unordered_map<std::string, __label_id_t, StrHashFunc, StrEqualFunc> label_to_id;
+    std::unordered_map<__label_id_t, std::string> id_to_label;
+
+    InnerMap() = default;
+    ~InnerMap() = default;
+    InnerMap(const InnerMap&) = default;
+    InnerMap& operator=(const InnerMap&) = default;
+};
 
 // The label schema of edges.
 class Schema {
-    std::set<std::string> _label_set;
+    std::set<std::string, StrCmpFunc> _label_set;
 public:
     Schema() = default;
     ~Schema() = default;
@@ -25,7 +34,7 @@ public:
     void AddEdgeLabel(const char* label);
     void AddEdgeLabels(std::vector<std::string>& label_lists);
 private:
-    LabelIdMap&& InnerCoding() const;
+    void InnerCoding(InnerMap& inner_map) const;
     friend class LDB;
 };
 

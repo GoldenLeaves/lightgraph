@@ -3,6 +3,7 @@
 //
 
 #include "strhash.hh"
+#include <cstring>
 
 namespace lightgraph
 {
@@ -48,7 +49,7 @@ unsigned int MurmurHash2(const void* key, unsigned int len, unsigned int seed)
     case 1: h ^= data[0];
             h *= m;
     default: break;
-    };
+    }
 
     // Do a few final mixes of the hash to ensure the last few
     // bytes are well-incorporated.
@@ -62,12 +63,17 @@ unsigned int MurmurHash2(const void* key, unsigned int len, unsigned int seed)
 
 size_t StrHashFunc::operator()(const std::string& ctx) const
 {
-    return MurmurHash2(ctx.data(),ctx.size(),static_cast<size_t>(0xc70f6907UL));
+    return MurmurHash2(ctx.data(), ctx.size(), static_cast<size_t>(0xc70f6907UL));
 }
 
 bool StrEqualFunc::operator()(const std::string& a, const std::string& b) const
 {
     return a == b;
+}
+
+bool StrCmpFunc::operator()(const std::string &a, const std::string &b) const
+{
+    return  std::strcmp(a.c_str(), b.c_str()) < 0;
 }
 
 }

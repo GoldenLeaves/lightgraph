@@ -3,11 +3,13 @@
 //
 #include <string>
 #include <iostream>
-#include <ldb.hh>
 
 #include "rocksdb/db.h"
-#include "rocksdb/slice.h"
 #include "rocksdb/options.h"
+#include "rocksdb/slice.h"
+#include "rocksdb/slice_transform.h"
+#include "rocksdb/table.h"
+#include "rocksdb/filter_policy.h"
 
 using namespace std;
 using namespace rocksdb;
@@ -15,45 +17,43 @@ using namespace rocksdb;
 std::string kDBPath = "../data/db_test";
 
 int main() {
-    cout << "Test Rocksdb." << endl;
     DB* db;
     Options options;
-    // Optimize RocksDB. This is the easiest way to get RocksDB to perform well
     options.IncreaseParallelism();
     options.OptimizeLevelStyleCompaction();
-    // create the DB if it's not already present
     options.create_if_missing = true;
+    // Enable prefix bloom for mem tables
+    options.prefix_extractor.reset(NewFixedPrefixTransform(3));
 
-    // open DB
+    // Enable prefix bloom for SST files
+    BlockBasedTableOptions table_options = BlockBasedTableOptions();
+    table_options.filter_policy.reset(NewBloomFilterPolicy(10, true));
+    options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+
     Status s = DB::Open(options, kDBPath, &db);
     assert(s.ok());
 
-    // Put key-value
-    s = db->Put(WriteOptions(), "key1", "value");
+    s = db->Put(WriteOptions(), "key1", "value1");
     assert(s.ok());
-    std::string value;
-    // get value
-    s = db->Get(ReadOptions(), "key1", &value);
+    s = db->Put(WriteOptions(), "key2", "value2");
     assert(s.ok());
-    assert(value == "value");
+    s = db->Put(WriteOptions(), "key4", "value3");
+    assert(s.ok());
+    s = db->Put(WriteOptions(), "key5", "value4");
+    assert(s.ok());
+    s = db->Put(WriteOptions(), "otherPrefix1", "otherValue1");
+    assert(s.ok());
+    s = db->Put(WriteOptions(), "abc", "abcvalue1");
+    assert(s.ok());
 
-    // atomically apply a set of updates
+    auto iter = db->NewIterator(ReadOptions());
+    Slice prefix = options.prefix_extractor->Transform("key3");
+    for (iter->Seek("key3"); iter->Valid() && iter->key().starts_with(prefix); iter->Next())
     {
-        WriteBatch batch;
-        batch.Delete("key1");
-        batch.Put("key2", value);
-        s = db->Write(WriteOptions(), &batch);
+        std::cout << iter->key().ToString() << ": " << iter->value().ToString() << std::endl;
     }
 
-    s = db->Get(ReadOptions(), "key1", &value);
-    assert(s.IsNotFound());
-
-    db->Get(ReadOptions(), "key2", &value);
-    assert(value == "value");
-
+    db->Delete(WriteOptions(), "key3");
     delete db;
-
-    cout << "Test passed!" << endl;
-
     return 0;
 }

@@ -24,14 +24,14 @@ void Schema::AddEdgeLabels(std::vector<std::string> &label_lists)
     }
 }
 
-LabelIdMap&& Schema::InnerCoding() const
+void Schema::InnerCoding(InnerMap& inner_map) const
 {
-    LabelIdMap inner_code_map;
     __label_id_t code = 0;
     for(auto& label: _label_set) {
-        inner_code_map.insert(std::make_pair(label, code++));
+        inner_map.label_to_id.insert(std::make_pair(label, code));
+        inner_map.id_to_label.insert(std::make_pair(code, label));
+        code++;
     }
-    return std::move(inner_code_map);
 }
 
 } // end namespace lightgraph

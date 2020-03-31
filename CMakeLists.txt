@@ -16,9 +16,17 @@ set(SOURCE_FILES
         src/properties.cc
         include/typedef.hh
         include/strhash.hh
-        src/strhash.cc)
-
-add_executable(testdb tests/testdb.cc ${SOURCE_FILES})
+        src/strhash.cc
+        src/iterator.cc)
 
 set(TARGET_LINK_FLAGS -lrocksdb -ljsoncpp -ldl)
+
+add_executable(testdb tests/testdb.cc ${SOURCE_FILES})
+add_executable(test_vertex tests/test_vertex.cc ${SOURCE_FILES})
+add_executable(test_lala tests/test_lala.cc)
+add_executable(test_iter tests/test_iter.cc ${SOURCE_FILES})
+
 target_link_libraries(testdb ${TARGET_LINK_FLAGS})
+target_link_libraries(test_vertex ${TARGET_LINK_FLAGS})
+target_link_libraries(test_iter ${TARGET_LINK_FLAGS})
+

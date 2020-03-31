@@ -6,19 +6,30 @@
 
 namespace lightgraph {
 
-Properties Properties::CreateProperties(const std::string &json_str)
+Properties& Properties::operator=(const Properties& other)
 {
-    Json::Reader reader;
-    Json::Value root;
-    if(reader.parse(json_str, root)) {
-        return Properties(root);
+    if(this != &other) {
+        _root = other._root;
     }
-    return Properties();
+    return *this;
+}
+
+Properties Properties::CreatePropertiesFrom(const std::string &json_str)
+{
+    Json::CharReaderBuilder builder;
+    JSONCPP_STRING errs;
+    Json::CharReader* reader = builder.newCharReader();
+    Json::Value root;
+    if (!reader->parse(json_str.data(), json_str.data() + json_str.size(), &root, &errs)) {
+        return {};
+    }
+    return Properties(root);
 }
 
 bool Properties::LoadFrom(const std::string &json_str)
 {
     Json::Reader reader;
+    _root.clear();
     return reader.parse(json_str, _root);
 }
 
@@ -47,7 +58,8 @@ bool Properties::AddArrayProperty(const std::string &key, const std::vector<std:
 
 std::string Properties::AsString() const
 {
-    return _root.asString();
+    Json::Value a;
+    return _root.toStyledString();
 }
 
 std::string Properties::GetValueBy(const std::string &key)

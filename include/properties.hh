@@ -14,8 +14,10 @@ public:
     explicit Properties(Json::Value& value): _root(value) {}
     ~Properties() = default;
 
+    Properties& operator=(const Properties& other);
+
     // Parse a json string and create a Properties class.
-    static Properties CreateProperties(const std::string& json_str);
+    static Properties CreatePropertiesFrom(const std::string& json_str);
 
     // Load from a json string.
     // Error occurred if return false.
