@@ -26,5 +26,6 @@ typedef __uint64_t __vertex_id_t;
 typedef __uint32_t __label_id_t;
 typedef __uint64_t __time_t;
 typedef __uint16_t __op_flag_t;
+typedef __uint16_t __index_padding_t;
 
 }
