@@ -5,6 +5,7 @@
 #include "schema.hh"
 #include "properties.hh"
 #include "typedef.hh"
+#include "endian_conversion.hh"
 #include <utility>
 #include <memory>
 #include <limits>
@@ -147,6 +148,7 @@ private:
     void GetDeltaFromInInnerKeyByE(const LSlice& key, GraphDelta* delta) const;
 
     inline LSlice GetInnerKeyOfOutDeltaIndex(const GraphEdge& edge) const;
+    inline LSlice GetInnerKeyOfInDeltaIndex(const GraphEdge& edge) const;
 
 private:
     rocksdb::DB* _db;
@@ -196,13 +198,20 @@ private:
         /*
          Index with Out Vertex
          -----------------------------key length: 24 Bytes----------------------------
-         |   0 ~ 1   |     2 ~ 3     |     4 ~ 11    |    12 ~ 15    |    16 ~ 23    |
+         |   0 ~ 1   |     2 ~ 9     |    10 ~ 13    |    14 ~ 21    |    22 ~ 23    |
          -----------------------------------------------------------------------------
-         |  BlockId  |  NullPadding  |  SrcVertexId  |  EdgeLabelId  |  DstVertexId  |
+         |  BlockId  |  SrcVertexId  |  EdgeLabelId  |  DstVertexId  |  NullPadding  |
          -----------------------------------------------------------------------------
          */
         OutVIndex = 6,
-        /* TODO */
+        /*
+         Index with In Vertex
+         -----------------------------key length: 24 Bytes----------------------------
+         |   0 ~ 1   |     2 ~ 9     |    10 ~ 13    |    14 ~ 21    |    22 ~ 23    |
+         -----------------------------------------------------------------------------
+         |  BlockId  |  DstVertexId  |  EdgeLabelId  |  SrcVertexId  |  NullPadding  |
+         -----------------------------------------------------------------------------
+         */
         InVIndex = 7,
     };
     const size_t VertexKeyLen = sizeof(__machine_t) + sizeof(__vertex_id_t);
@@ -264,10 +273,8 @@ class LDB::OptimizedIntervalOutVIterator: public LDB::VertexIterator {
     LSlice _index_prefix;
     __time_t _lower_t;
     __time_t _upper_t;
-    const size_t _delta_prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t)
+    const size_t _prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t)
             + sizeof(__label_id_t);
-    const size_t _index_prefix_len = sizeof(__block_id_t) + sizeof(__index_padding_t)
-            + sizeof(__vertex_id_t) + sizeof(__label_id_t);
 public:
     OptimizedIntervalOutVIterator()
         : VertexIterator(), _index_iter(nullptr), _index_prefix()
@@ -287,7 +294,8 @@ private:
 
 class LDB::SnapshotOutVIterator: public LDB::VertexIterator {
     __time_t _t;
-    const size_t _prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t);
+    const size_t _prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t)
+            + sizeof(__label_id_t);
 public:
     SnapshotOutVIterator() = delete;
     SnapshotOutVIterator(LIterator* iter, const LSlice& prefix, __time_t t)
@@ -302,10 +310,8 @@ class LDB::OptimizedSnapshotOutVIterator: public LDB::VertexIterator {
     std::unique_ptr<LIterator> _index_iter;
     LSlice _index_prefix;
     __time_t _t;
-    const size_t _delta_prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t)
+    const size_t _prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t)
             + sizeof(__label_id_t);
-    const size_t _index_prefix_len = sizeof(__block_id_t) + sizeof(__index_padding_t)
-            + sizeof(__vertex_id_t) + sizeof(__label_id_t);
 public:
     OptimizedSnapshotOutVIterator() = delete;
     OptimizedSnapshotOutVIterator(LIterator* iter, const LSlice& prefix,
@@ -316,7 +322,7 @@ public:
 
     bool GetNext(__vertex_id_t& target) override;
 private:
-       bool ProcessOneStep(__vertex_id_t& target);
+    bool ProcessOneStep(__vertex_id_t& target);
 };
 
 class LDB::DeltaIterator {

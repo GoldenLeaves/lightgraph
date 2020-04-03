@@ -30,7 +30,7 @@ int main() {
     std::cout << "Open DB successfully." << std::endl;
 
     // Put vertices
-    s = db.VertexPut(1111, lightgraph::Properties());
+    s = db.VertexPut(8222222, lightgraph::Properties());
     assert(s.ok());
     s = db.VertexPut(1112, lightgraph::Properties());
     assert(s.ok());

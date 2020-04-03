@@ -17,7 +17,9 @@ set(SOURCE_FILES
         include/typedef.hh
         include/strhash.hh
         src/strhash.cc
-        src/iterator.cc)
+        src/iterator.cc
+        include/endian_conversion.hh
+        src/endian_conversion.cc)
 
 set(TARGET_LINK_FLAGS -lrocksdb -ljsoncpp -ldl)
 
@@ -26,9 +28,13 @@ add_executable(test_vertex tests/test_vertex.cc ${SOURCE_FILES})
 add_executable(test_lala tests/test_lala.cc)
 add_executable(test_iter tests/test_iter.cc ${SOURCE_FILES})
 add_executable(test_graphscan tests/test_graphscan.cc ${SOURCE_FILES})
+add_executable(test_prefix_extractor tests/test_prefix_extractor.cc ${SOURCE_FILES})
+add_executable(experiment1 tests/experiment1.cc ${SOURCE_FILES})
 
 target_link_libraries(testdb ${TARGET_LINK_FLAGS})
 target_link_libraries(test_vertex ${TARGET_LINK_FLAGS})
 target_link_libraries(test_iter ${TARGET_LINK_FLAGS})
 target_link_libraries(test_graphscan ${TARGET_LINK_FLAGS})
+target_link_libraries(test_prefix_extractor ${TARGET_LINK_FLAGS})
+target_link_libraries(experiment1 ${TARGET_LINK_FLAGS})
 

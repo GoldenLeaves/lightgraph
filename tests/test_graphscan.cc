@@ -118,7 +118,7 @@ void TestDeltaScanOfEdge(lightgraph::LDB& db) {
 
 void TestGetOutVDuring(lightgraph::LDB& db) {
     std::cout << "Test GetOutVDuring" << std::endl;
-    auto iter = db.GetOutVDuring(1001, "knows", 3, 17);
+    auto iter = db.GetOutVDuring(1001, "knows", 1, 5);
     lightgraph::__vertex_id_t dst;
     while(iter->GetNext(dst)) {
         std::cout << "src: " << 1001 << ", " << "dst: " << dst << std::endl;

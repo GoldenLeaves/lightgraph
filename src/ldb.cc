@@ -70,10 +70,9 @@ LStatus LDB::VertexGet(__vertex_id_t vertex_id, std::string* value,
 std::unique_ptr<LDB::VertexIterator>
 LDB::VertexScan(const LReadOptions &options)
 {
-    auto prefix = malloc(sizeof(__block_id_t));
-    auto block_id = BlockId::Vertex;
-    memcpy(prefix, &block_id, sizeof(__block_id_t));
-    LSlice prefix_slice(static_cast<char*>(prefix), sizeof(__block_id_t));
+    auto virtual_prefix = GetInnerKeyOfVertex(0);
+    auto true_prefix_len = sizeof(__block_id_t);
+    LSlice prefix_slice(virtual_prefix.data_, true_prefix_len);
 
     auto l_iter = _db->NewIterator(options);
     l_iter->Seek(prefix_slice);
@@ -98,15 +97,22 @@ LStatus LDB::DeltaPut(const GraphDelta &delta, const Properties &prop,
     key = GetInnerKeyOfOutDeltaByE(delta);
     batch.Put(key, "");
     free((void *) key.data());
-    // Add OutDelta Index
-    key = GetInnerKeyOfOutDeltaIndex(delta.edge);
-    batch.Put(key, "");                  
-    free((void *) key.data());
+    if(_using_index) {
+        // Add OutDelta Index
+        key = GetInnerKeyOfOutDeltaIndex(delta.edge);
+        batch.Put(key, "");
+        free((void *) key.data());
+    }
 
     key = GetInnerKeyOfInDeltaByE(delta);
     batch.Put(key, value);
     free((void *) key.data());
-    // TODO: Add InDelta Index
+    if(_using_index) {
+        // Add InDelta Index
+        key = GetInnerKeyOfInDeltaIndex(delta.edge);
+        batch.Put(key, "");
+        free((void *) key.data());
+    }
 
     return _db->Write(options, &batch);
 }
@@ -114,13 +120,9 @@ LStatus LDB::DeltaPut(const GraphDelta &delta, const Properties &prop,
 std::unique_ptr<LDB::DeltaIterator>
 LDB::DeltaScan(__time_t lower_t, __time_t upper_t, const LReadOptions &options)
 {
-    auto prefix = malloc(sizeof(__block_id_t) + sizeof(__time_t));
-    auto block_id = BlockId::TimeSortedDelta;
-    memcpy(prefix, &block_id, sizeof(__block_id_t));
-    memcpy(static_cast<char*>(prefix) + sizeof(__block_id_t),
-            &lower_t, sizeof(__time_t));
-    LSlice prefix_slice(static_cast<char*>(prefix),
-            sizeof(__block_id_t) + sizeof(__time_t));
+    auto virtual_prefix = GetInnerKeyOfTimeSortedDelta({{}, lower_t, OpFlag::Null});
+    auto true_prefix_len = sizeof(__block_id_t) + sizeof(__time_t);
+    LSlice prefix_slice(virtual_prefix.data_, true_prefix_len);
 
     auto l_iter = _db->NewIterator(options);
     l_iter->Seek(prefix_slice);
@@ -133,17 +135,9 @@ std::unique_ptr<LDB::DeltaIterator>
 LDB::DeltaScanOfOutV(__vertex_id_t src, const std::string &edge_label,
         __time_t lower_t, __time_t upper_t, const LReadOptions &options)
 {
-    auto prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t);
-    auto prefix = malloc(prefix_len);
-    auto block_id = BlockId::OutDeltaByE;
-    auto label_id = GetInnerIdOfLabel(edge_label);
-    memcpy(static_cast<char*>(prefix),
-           &block_id, sizeof(__block_id_t));
-    memcpy(static_cast<char*>(prefix) + sizeof(__block_id_t),
-           &src, sizeof(__vertex_id_t));
-    memcpy(static_cast<char*>(prefix) + sizeof(__block_id_t) + sizeof(__vertex_id_t),
-           &label_id, sizeof(__label_id_t));
-    LSlice prefix_slice(static_cast<char*>(prefix), prefix_len);
+    auto virtual_prefix = GetInnerKeyOfOutDeltaByE({{src, edge_label, 0}, 0, OpFlag::Null});
+    auto true_prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t);
+    LSlice prefix_slice(virtual_prefix.data_, true_prefix_len);
 
     auto l_iter = _db->NewIterator(options);
     l_iter->Seek(prefix_slice);
@@ -182,9 +176,8 @@ LDB::GetOutVDuring(__vertex_id_t src, const std::string &edge_label,
         auto index_iter = _db->NewIterator(options);
         auto virtual_index_prefix_slice =
                 GetInnerKeyOfOutDeltaIndex({src, edge_label, 0});
-        auto true_index_prefix_len = sizeof(__block_id_t) + sizeof(__index_padding_t)
-                + sizeof(__vertex_id_t) + sizeof(__label_id_t);
-        LSlice true_index_prefix_slice(virtual_index_prefix_slice.data_, true_index_prefix_len);
+        LSlice true_index_prefix_slice(virtual_index_prefix_slice.data_, true_prefix_len);
+
         index_iter->Seek(true_index_prefix_slice);
         v_iter.reset(new OptimizedIntervalOutVIterator(delta_iter, true_prefix_slice,
                 index_iter, true_index_prefix_slice, lower_t, upper_t));
@@ -210,9 +203,8 @@ LDB::GetOutVAt(__vertex_id_t src, const std::string &edge_label,
         auto index_iter = _db->NewIterator(options);
         auto virtual_index_prefix_slice =
                 GetInnerKeyOfOutDeltaIndex({src, edge_label, 0});
-        auto true_index_prefix_len = sizeof(__block_id_t) + sizeof(__index_padding_t)
-                + sizeof(__vertex_id_t) + sizeof(__label_id_t);
-        LSlice true_index_prefix_slice(virtual_index_prefix_slice.data_, true_index_prefix_len);
+
+        LSlice true_index_prefix_slice(virtual_index_prefix_slice.data_, true_prefix_len);
         index_iter->Seek(true_index_prefix_slice);
         v_iter.reset(new OptimizedSnapshotOutVIterator(delta_iter, true_prefix_slice,
                 index_iter, true_index_prefix_slice, time));
@@ -243,6 +235,7 @@ bool LDB::EdgeExists(const GraphEdge &edge, __time_t time,
         memcpy((void *) (&op),
                l_iter->key().data_ + true_prefix_len + sizeof(__time_t),
                sizeof(__op_flag_t));
+        op = EndianConversion::NtoH16(op);
         if(op == OpFlag::Insert) {
             return true;
         }
@@ -257,7 +250,7 @@ __label_id_t LDB::GetInnerIdOfLabel(const std::string &label)  const
     if(iter != _inner_map.label_to_id.end()) {
         return iter->second;
     }
-    return 0;
+    return std::numeric_limits<__label_id_t>::max();
 }
 
 bool LDB::GetLabelOfInnerId(__label_id_t id, std::string *label)  const
@@ -272,12 +265,15 @@ bool LDB::GetLabelOfInnerId(__label_id_t id, std::string *label)  const
 
 LSlice LDB::GetInnerKeyOfVertex(__vertex_id_t vertex_id)  const
 {
-    __machine_t block_id = BlockId::Vertex;
-    // Fill the padding area
-    block_id = block_id << (sizeof(__machine_t) - sizeof(__block_id_t));
+    auto block_id = EndianConversion::HtoN16(BlockId::Vertex);
+    vertex_id = EndianConversion::HtoN64(vertex_id);
+    __machine_t id = 0;
+
     auto* key = std::malloc(VertexKeyLen);
     memcpy(static_cast<char*>(key),
-            &block_id, sizeof(__machine_t));
+            &id, sizeof(__machine_t));
+    memcpy(static_cast<char*>(key),
+            &block_id, sizeof(__block_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__machine_t),
             &vertex_id, sizeof(__vertex_id_t));
     return {static_cast<char*>(key), VertexKeyLen};
@@ -285,21 +281,26 @@ LSlice LDB::GetInnerKeyOfVertex(__vertex_id_t vertex_id)  const
 
  LSlice LDB::GetInnerKeyOfTimeSortedDelta(const GraphDelta& delta)  const
 {
-    auto block_id = BlockId::TimeSortedDelta;
-    auto label_id = GetInnerIdOfLabel(delta.edge.label);
+    auto block_id = EndianConversion::HtoN16(BlockId::TimeSortedDelta);
+    auto time = EndianConversion::HtoN64(delta.t);
+    auto src_id = EndianConversion::HtoN64(delta.edge.src);
+    auto label_id = EndianConversion::HtoN32(GetInnerIdOfLabel(delta.edge.label));
+    auto dst_id = EndianConversion::HtoN64(delta.edge.dst);
+    auto op = EndianConversion::HtoN16(delta.op);
+
     auto* key = std::malloc(DeltaKeyLen);
     memcpy(static_cast<char*>(key),
             &block_id, sizeof(__block_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t),
-            &delta.t, sizeof(__time_t));
+            &time, sizeof(__time_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__time_t),
-            &delta.edge.src, sizeof(__vertex_id_t));
+            &src_id, sizeof(__vertex_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__time_t) + sizeof(__vertex_id_t),
             &label_id, sizeof(__label_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__time_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
-            &delta.edge.dst, sizeof(__vertex_id_t));
+            &dst_id, sizeof(__vertex_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__time_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t),
-            &delta.op, sizeof(__op_flag_t));
+            &op, sizeof(__op_flag_t));
     return {static_cast<char*>(key), DeltaKeyLen};
 }
 
@@ -307,43 +308,58 @@ void LDB::GetDeltaFromTimeSortedInnerKey(const LSlice& key, GraphDelta* delta)  
 {
     __block_id_t block_id;
     memcpy((void *) (&block_id), key.data_, sizeof(__block_id_t));
-    assert(block_id == BlockId::TimeSortedDelta);
+    assert(EndianConversion::NtoH16(block_id) == BlockId::TimeSortedDelta);
+
     memcpy((void *) (&(delta->t)),
             key.data_ + sizeof(__block_id_t),
             sizeof(__time_t));
+    delta->t = EndianConversion::NtoH64(delta->t);
+
     memcpy((void *) (&(delta->edge.src)),
             key.data_ + sizeof(__block_id_t) + sizeof(__time_t),
             sizeof(__vertex_id_t));
+    delta->edge.src = EndianConversion::NtoH64(delta->edge.src);
+
     __label_id_t label_id;
     memcpy((void *) (&label_id),
             key.data_ + sizeof(__block_id_t) + sizeof(__time_t) + sizeof(__vertex_id_t),
             sizeof(__label_id_t));
+    label_id = EndianConversion::NtoH32(label_id);
     assert(GetLabelOfInnerId(label_id, &(delta->edge.label)));
+
     memcpy((void *) (&(delta->edge.dst)),
             key.data_ + sizeof(__block_id_t) + sizeof(__time_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
             sizeof(__vertex_id_t));
+    delta->edge.dst = EndianConversion::NtoH64(delta->edge.dst);
+
     memcpy((void *) (&(delta->op)),
             key.data_ + sizeof(__block_id_t) + sizeof(__time_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t),
             sizeof(__op_flag_t));
+    delta->op = static_cast<OpFlag>(EndianConversion::NtoH16(delta->op));
 }
 
 LSlice LDB::GetInnerKeyOfOutDeltaByE(const GraphDelta& delta) const
 {
-    auto block_id = BlockId::OutDeltaByE;
-    auto label_id = GetInnerIdOfLabel(delta.edge.label);
+    auto block_id = EndianConversion::HtoN16(BlockId::OutDeltaByE);
+    auto src_id = EndianConversion::HtoN64(delta.edge.src);
+    auto label_id = EndianConversion::HtoN32(GetInnerIdOfLabel(delta.edge.label));
+    auto dst_id = EndianConversion::HtoN64(delta.edge.dst);
+    auto time = EndianConversion::HtoN64(delta.t);
+    auto op = EndianConversion::HtoN16(delta.op);
+
     auto* key = std::malloc(DeltaKeyLen);
     memcpy(static_cast<char*>(key),
             &block_id, sizeof(__block_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t),
-            &delta.edge.src, sizeof(__vertex_id_t));
+            &src_id, sizeof(__vertex_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t),
             &label_id, sizeof(__label_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
-            &delta.edge.dst, sizeof(__vertex_id_t));
+            &dst_id, sizeof(__vertex_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t),
-            &delta.t, sizeof(__time_t));
+            &time, sizeof(__time_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t) + sizeof(__time_t),
-            &delta.op, sizeof(__op_flag_t));
+            &op, sizeof(__op_flag_t));
     return {static_cast<char*>(key), DeltaKeyLen};
 }
 
@@ -351,43 +367,58 @@ void LDB::GetDeltaFromOutInnerKeyByE(const LSlice &key, GraphDelta *delta) const
 {
     __block_id_t block_id;
     memcpy((void *) (&block_id), key.data_, sizeof(__block_id_t));
-    assert(block_id == BlockId::OutDeltaByE);
+    assert(EndianConversion::NtoH16(block_id) == BlockId::OutDeltaByE);
+
     memcpy((void *) (&(delta->edge.src)),
             key.data_ + sizeof(__block_id_t),
             sizeof(__vertex_id_t));
+    delta->edge.src = EndianConversion::NtoH64(delta->edge.src);
+
     __label_id_t label_id;
     memcpy((void *) (&label_id),
             key.data_ + sizeof(__block_id_t) + sizeof(__vertex_id_t),
             sizeof(__label_id_t));
+    label_id = EndianConversion::NtoH32(label_id);
     assert(GetLabelOfInnerId(label_id, &(delta->edge.label)));
+
     memcpy((void *) (&delta->edge.dst),
             key.data_ + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
             sizeof(__vertex_id_t));
+    delta->edge.dst = EndianConversion::NtoH64(delta->edge.dst);
+
     memcpy((void *) (&delta->t),
             key.data_ + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t),
             sizeof(__time_t));
+    delta->t = EndianConversion::NtoH64(delta->t);
+
     memcpy((void *) (&delta->op),
             key.data_ + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t) + sizeof(__time_t),
             sizeof(__op_flag_t));
+    delta->op = static_cast<OpFlag>(EndianConversion::NtoH16(delta->op));
 }
 
 LSlice LDB::GetInnerKeyOfInDeltaByE(const GraphDelta& delta) const
 {
-    auto block_id = BlockId::InDeltaByE;
-    auto label_id = GetInnerIdOfLabel(delta.edge.label);
+    auto block_id = EndianConversion::HtoN16(BlockId::OutDeltaByE);
+    auto src_id = EndianConversion::HtoN64(delta.edge.src);
+    auto label_id = EndianConversion::HtoN32(GetInnerIdOfLabel(delta.edge.label));
+    auto dst_id = EndianConversion::HtoN64(delta.edge.dst);
+    auto time = EndianConversion::HtoN64(delta.t);
+    auto op = EndianConversion::HtoN16(delta.op);
+
     auto* key = std::malloc(DeltaKeyLen);
     memcpy(static_cast<char*>(key),
             &block_id, sizeof(__block_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t),
-            &delta.edge.dst, sizeof(__vertex_id_t));
+            &dst_id, sizeof(__vertex_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t),
             &label_id, sizeof(__label_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
-            &delta.edge.src, sizeof(__vertex_id_t));
+            &src_id, sizeof(__vertex_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t),
-            &delta.t, sizeof(__time_t));
+            &time, sizeof(__time_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t) + sizeof(__time_t),
-            &delta.op, sizeof(__op_flag_t));
+            &op, sizeof(__op_flag_t));
     return {static_cast<char*>(key), DeltaKeyLen};
 }
 
@@ -395,42 +426,78 @@ void LDB::GetDeltaFromInInnerKeyByE(const LSlice &key, GraphDelta *delta) const
 {
     __block_id_t block_id;
     memcpy((void *) (&block_id), key.data_, sizeof(__block_id_t));
-    assert(block_id == BlockId::InDeltaByE);
+    assert(EndianConversion::NtoH16(block_id) == BlockId::InDeltaByE);
+
     memcpy((void *) (&(delta->edge.dst)),
             key.data_ + sizeof(__block_id_t),
             sizeof(__vertex_id_t));
+    delta->edge.dst = EndianConversion::NtoH64(delta->edge.dst);
+
     __label_id_t label_id;
     memcpy((void *) (&label_id),
             key.data_ + sizeof(__block_id_t) + sizeof(__vertex_id_t),
             sizeof(__label_id_t));
+    label_id = EndianConversion::NtoH32(label_id);
     assert(GetLabelOfInnerId(label_id, &(delta->edge.label)));
+
     memcpy((void *) (&delta->edge.src),
             key.data_ + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
             sizeof(__vertex_id_t));
+    delta->edge.src = EndianConversion::NtoH64(delta->edge.src);
+
     memcpy((void *) (&delta->t),
             key.data_ + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t),
             sizeof(__time_t));
+    delta->t = EndianConversion::NtoH64(delta->t);
+
     memcpy((void *) (&delta->op),
             key.data_ + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t) + sizeof(__time_t),
             sizeof(__op_flag_t));
+    delta->op = static_cast<OpFlag>(EndianConversion::NtoH16(delta->op));
 }
 
 LSlice LDB::GetInnerKeyOfOutDeltaIndex(const GraphEdge &edge) const
 {
-    __block_id_t block_id = BlockId::OutVIndex;
+    __block_id_t block_id = EndianConversion::HtoN16(BlockId::OutVIndex);
+    auto src_id = EndianConversion::HtoN64(edge.src);
+    auto label_id = EndianConversion::HtoN32(GetInnerIdOfLabel(edge.label));
+    auto dst_id = EndianConversion::HtoN64(edge.dst);
     __index_padding_t padding = 0;
-    auto label_id = GetInnerIdOfLabel(edge.label);
+
     auto *key = std::malloc(DeltaIndexKeyLen);
     memcpy(static_cast<char*>(key),
             &block_id, sizeof(__block_id_t));
     memcpy(static_cast<char*>(key) + sizeof(__block_id_t),
-            &padding, sizeof(__index_padding_t));
-    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__index_padding_t),
-            &edge.src, sizeof(__vertex_id_t));
-    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__index_padding_t) + sizeof(__vertex_id_t),
+            &src_id, sizeof(__vertex_id_t));
+    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t),
             &label_id, sizeof(__label_id_t));
-    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__index_padding_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
-            &edge.dst, sizeof(__vertex_id_t));
+    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
+            &dst_id, sizeof(__vertex_id_t));
+    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t),
+            &padding, sizeof(__index_padding_t));
+    return {static_cast<char*>(key), DeltaIndexKeyLen};
+}
+
+LSlice LDB::GetInnerKeyOfInDeltaIndex(const GraphEdge &edge) const
+{
+    __block_id_t block_id = EndianConversion::HtoN16(BlockId::InVIndex);
+    auto src_id = EndianConversion::HtoN64(edge.src);
+    auto label_id = EndianConversion::HtoN32(GetInnerIdOfLabel(edge.label));
+    auto dst_id = EndianConversion::HtoN64(edge.dst);
+    __index_padding_t padding = 0;
+
+
+    auto *key = std::malloc(DeltaIndexKeyLen);
+    memcpy(static_cast<char*>(key),
+           &block_id, sizeof(__block_id_t));
+    memcpy(static_cast<char*>(key) + sizeof(__block_id_t),
+           &dst_id, sizeof(__vertex_id_t));
+    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t),
+           &label_id, sizeof(__label_id_t));
+    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t),
+           &src_id, sizeof(__vertex_id_t));
+    memcpy(static_cast<char*>(key) + sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t) + sizeof(__vertex_id_t),
+           &padding, sizeof(__index_padding_t));
     return {static_cast<char*>(key), DeltaIndexKeyLen};
 }
 
