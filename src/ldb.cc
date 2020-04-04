@@ -35,6 +35,10 @@ void LDB::UsingIndex() {
     _using_index = true;
 }
 
+void LDB::ClosingIndex() {
+    _using_index = false;
+}
+
 // Vertex operations
 LStatus LDB::VertexPut(__vertex_id_t vertex_id, const Properties &prop,
         const LWriteOptions &options)

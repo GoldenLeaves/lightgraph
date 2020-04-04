@@ -74,6 +74,7 @@ public:
     LStatus Open(const LOptions& loptions, const std::string& dbpath);
     void SetSchema(const Schema& schema);
     void UsingIndex();
+    void ClosingIndex();
 
     // Vertex Operations
     LStatus VertexPut(__vertex_id_t vertex_id, const Properties& prop,
