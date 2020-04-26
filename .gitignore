@@ -1,5 +1,6 @@
 build/*
 data/*
+lib/*
 cmake-build-debug
 cmake-build-release
 .idea
