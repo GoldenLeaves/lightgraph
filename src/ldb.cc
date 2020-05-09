@@ -166,6 +166,30 @@ LDB::DeltaScanOfEdge(const GraphEdge& edge, __time_t lower_t, __time_t upper_t,
 
 // Graph Operations
 std::unique_ptr<LDB::VertexIterator>
+LDB::GetOutV(__vertex_id_t src, const std::string &edge_label, __time_t current_time,
+        __time_t time_weight, __time_t latest_arrival_time, const LReadOptions &options)
+{
+    auto virtual_prefix_slice = GetInnerKeyOfOutDeltaByE(
+            {src, edge_label, 0, current_time, OpFlag::Null});
+    auto true_prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t);
+    LSlice true_prefix_slice(virtual_prefix_slice.data_, true_prefix_len);
+
+    auto delta_iter = _db->NewIterator(options);
+    std::unique_ptr<VertexIterator> v_iter;
+
+    // Default: using index
+    auto index_iter = _db->NewIterator(options);
+    auto virtual_index_prefix_slice =
+            GetInnerKeyOfOutDeltaIndex({src, edge_label, 0});
+    LSlice true_index_prefix_slice(virtual_index_prefix_slice.data_, true_prefix_len);
+    index_iter->Seek(true_index_prefix_slice);
+    v_iter.reset(new OutVIterator(delta_iter, true_prefix_slice,
+            index_iter, true_index_prefix_slice, current_time, time_weight, latest_arrival_time));
+
+    return v_iter;
+}
+
+std::unique_ptr<LDB::VertexIterator>
 LDB::GetOutVDuring(__vertex_id_t src, const std::string &edge_label,
         __time_t lower_t, __time_t upper_t, const LReadOptions &options)
 {

@@ -116,6 +116,18 @@ void TestDeltaScanOfEdge(lightgraph::LDB& db) {
     }
 }
 
+void TestGetOutV(lightgraph::LDB& db) {
+    std::cout << "Test GetOutV" << std::endl;
+    lightgraph::__time_t dep_t = 9, time_weight = 2, latest_arr_t = 20;
+    auto iter = db.GetOutV(1001, "knows", dep_t, time_weight, latest_arr_t);
+    lightgraph::__vertex_id_t dst;
+    lightgraph::__time_t arr_time;
+    while(iter->GetNext(dst, arr_time)) {
+        std::cout << "|| Departure -- vertex: 1001, time: " << dep_t << " || "
+                  << "Arrival -- vertex: " << dst << ", time: " << arr_time << " ||" << std::endl;
+    }
+}
+
 void TestGetOutVDuring(lightgraph::LDB& db) {
     std::cout << "Test GetOutVDuring" << std::endl;
     auto iter = db.GetOutVDuring(1001, "knows", 1, 5);
@@ -161,8 +173,9 @@ int main() {
     //TestDeltaScanOfOutV(db);
     //TestDeltaScanOfEdge(db);
     //TestGetOutVDuring(db);
-    TestGetOutVAt(db);
+    //TestGetOutVAt(db);
     //TestEdgeExists(db, {1005, "likes", 3001}, 25);
+    TestGetOutV(db);
 
     return 0;
 }

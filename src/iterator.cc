@@ -12,6 +12,10 @@ LDB::VertexIterator::~VertexIterator()
     free((void *) _prefix.data_);
 }
 
+bool LDB::VertexIterator::GetNext(__vertex_id_t &target, __time_t &arrival_time) {
+    return false;
+}
+
 bool LDB::VertexScanIterator::GetNext(__vertex_id_t &target)
 {
     if(!_iter->Valid() || !_iter->key().starts_with(_prefix)) {
@@ -24,6 +28,86 @@ bool LDB::VertexScanIterator::GetNext(__vertex_id_t &target)
 
     _iter->Next();
     return true;
+}
+
+LDB::OutVIterator::~OutVIterator() {
+    free((void *) _index_prefix.data_);
+}
+
+bool LDB::OutVIterator::GetNext(__vertex_id_t &target) {
+    return false;
+}
+
+bool LDB::OutVIterator::GetNext(__vertex_id_t &target, __time_t &arrival_time) {
+    do {
+        if(!_index_iter->Valid() || !_index_iter->key().starts_with(_index_prefix)) {
+            return false;
+        }
+    } while(!ProcessOneStep(target, arrival_time));
+    return true;
+}
+
+bool LDB::OutVIterator::ProcessOneStep(__vertex_id_t &target, __time_t &arrival_time) {
+    memcpy((void *) (_prefix.data_ + _prefix_len),
+           _index_iter->key().data_ + _prefix_len,
+           sizeof(__vertex_id_t));
+    LSlice step_prefix(_prefix.data_, _prefix_len + sizeof(__vertex_id_t));
+
+    _iter->SeekForPrev({_prefix.data_,
+                        _prefix_len + sizeof(__vertex_id_t) + sizeof(__time_t)});
+    if(!_iter->key().starts_with(step_prefix)) {
+        _iter->Next();
+    }
+
+    bool return_value = false;
+    __time_t dep_time, future_arr_time = 0, op_time;
+    __op_flag_t op;
+
+    while(_iter->Valid() && _iter->key().starts_with(step_prefix)) {
+        memcpy((void *) (&op),
+               _iter->key().data_ + _prefix_len + sizeof(__vertex_id_t) + sizeof(__time_t),
+               sizeof(__op_flag_t));
+        op = EndianConversion::NtoH16(op);
+
+        if(op == OpFlag::Insert) {
+            assert(!return_value);
+            memcpy((void *) (&op_time),
+               _iter->key().data_ + _prefix_len + sizeof(__vertex_id_t),
+               sizeof(__time_t));
+            dep_time = std::max(EndianConversion::NtoH64(op_time), _cur_time);
+            future_arr_time = dep_time + _time_weight;
+            if(future_arr_time > _latest_arr_time) {
+                break;
+            }
+            return_value = true;
+        } else if(op == OpFlag::Delete) {
+            if(return_value) {
+                memcpy((void *) (&op_time),
+                       _iter->key().data_ + _prefix_len + sizeof(__vertex_id_t),
+                       sizeof(__time_t));
+                op_time = EndianConversion::NtoH64(op_time);
+                if(op_time >= future_arr_time) {
+                    break;
+                } else {
+                    return_value = false;
+                }
+            }
+        } else {
+            return_value = false;
+            break;
+        }
+        _iter->Next();
+    }
+
+    if(return_value) {
+        memcpy((void *) (&target),
+               _index_iter->key().data_ + _prefix_len,
+               sizeof(__vertex_id_t));
+        target = EndianConversion::NtoH64(target);
+        arrival_time = future_arr_time;
+    }
+    _index_iter->Next();
+    return return_value;
 }
 
 bool LDB::IntervalOutVIterator::GetNext(__vertex_id_t &target) {

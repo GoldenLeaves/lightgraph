@@ -109,6 +109,11 @@ public:
 
     // Graph Operations
     std::unique_ptr<VertexIterator>
+    GetOutV(__vertex_id_t src, const std::string& edge_label, __time_t current_time,
+            __time_t time_weight = 0, __time_t latest_arrival_time = std::numeric_limits<__time_t >::max(),
+            const LReadOptions& options = LReadOptions());
+
+    std::unique_ptr<VertexIterator>
     GetOutVDuring(__vertex_id_t src, const std::string& edge_label,
             __time_t lower_t = 0, __time_t upper_t = std::numeric_limits<__time_t >::max(),
             const LReadOptions& options = LReadOptions());
@@ -126,6 +131,7 @@ public:
 private:
     // Inner(private) iterator class
     class VertexScanIterator;
+    class OutVIterator;
     class IntervalOutVIterator;
     class OptimizedIntervalOutVIterator;
     class SnapshotOutVIterator;
@@ -244,6 +250,7 @@ public:
     //         do something;
     //     }
     virtual bool GetNext(__vertex_id_t& target) = 0;
+    virtual bool GetNext(__vertex_id_t& target, __time_t& arrival_time);
 };
 
 class LDB::VertexScanIterator: public LDB::VertexIterator {
@@ -252,6 +259,31 @@ public:
     explicit VertexScanIterator(LIterator* iter, const LSlice& prefix)
             : VertexIterator(iter, prefix){}
     bool GetNext(__vertex_id_t& target) override;
+};
+
+class LDB::OutVIterator: public LDB::VertexIterator {
+    std::unique_ptr<LIterator> _index_iter;
+    LSlice _index_prefix;
+    const size_t _prefix_len = sizeof(__block_id_t) + sizeof(__vertex_id_t) + sizeof(__label_id_t);
+    __time_t _cur_time;
+    __time_t _time_weight;
+    __time_t _latest_arr_time;
+public:
+    OutVIterator()
+        : VertexIterator(), _index_iter(nullptr), _index_prefix()
+        , _cur_time(0), _time_weight(0), _latest_arr_time(std::numeric_limits<__time_t >::max()) {}
+    OutVIterator(LIterator* iter, const LSlice& prefix,
+            LIterator* index_iter, const LSlice& index_prefix,
+            __time_t current_time, __time_t time_weight,
+            __time_t latest_arrival_time)
+        : VertexIterator(iter, prefix), _index_iter(index_iter), _index_prefix(index_prefix)
+        , _cur_time(current_time), _time_weight(time_weight), _latest_arr_time(latest_arrival_time) {}
+    ~OutVIterator() override;
+
+    bool GetNext(__vertex_id_t& target) override;
+    bool GetNext(__vertex_id_t& target, __time_t& arrival_time) override;
+private:
+    bool ProcessOneStep(__vertex_id_t& target, __time_t& arrival_time);
 };
 
 class LDB::IntervalOutVIterator: public LDB::VertexIterator {
