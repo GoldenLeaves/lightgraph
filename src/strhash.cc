@@ -2,7 +2,7 @@
 // Created by tramboo on 2020/3/23.
 //
 
-#include "strhash.hh"
+#include "lightgraph/strhash.hh"
 #include <cstring>
 
 namespace lightgraph

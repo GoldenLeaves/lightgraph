@@ -5,7 +5,7 @@
 #include "schema.hh"
 #include "properties.hh"
 #include "typedef.hh"
-#include "endian_conversion.hh"
+#include "lightgraph/endian_conversion.hh"
 #include <utility>
 #include <memory>
 #include <limits>

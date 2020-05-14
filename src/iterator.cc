@@ -2,7 +2,7 @@
 // Created by tramboo on 2020/3/31.
 //
 
-#include "ldb.hh"
+#include "lightgraph/ldb.hh"
 
 namespace lightgraph
 {
@@ -34,6 +34,7 @@ LDB::OutVIterator::~OutVIterator() {
     free((void *) _index_prefix.data_);
 }
 
+// Do not use this function
 bool LDB::OutVIterator::GetNext(__vertex_id_t &target) {
     return false;
 }

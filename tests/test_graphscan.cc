@@ -2,7 +2,7 @@
 // Created by tramboo on 2020/4/1.
 //
 
-#include <ldb.hh>
+#include <lightgraph/ldb.hh>
 #include <iostream>
 
 std::string DBPath = "../data/graphscan_test";

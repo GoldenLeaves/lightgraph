@@ -2,7 +2,7 @@
 // Created by tramboo on 2020/3/24.
 //
 
-#include <ldb.hh>
+#include <lightgraph/ldb.hh>
 #include <iostream>
 
 std::string DBPath = "../data/vertex_test";

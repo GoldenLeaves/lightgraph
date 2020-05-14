@@ -2,7 +2,7 @@
 // Created by tramboo on 2020/3/15.
 //
 
-#include "schema.hh"
+#include "lightgraph/schema.hh"
 
 namespace lightgraph
 {

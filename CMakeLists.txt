@@ -15,12 +15,12 @@ set(SOURCE_FILES
         src/strhash.cc
         src/endian_conversion.cc)
 set(HEADER_FILES
-        include/ldb.hh
-        include/schema.hh
-        include/properties.hh
-        include/typedef.hh
-        include/strhash.hh
-        include/endian_conversion.hh)
+        include/lightgraph/ldb.hh
+        include/lightgraph/schema.hh
+        include/lightgraph/properties.hh
+        include/lightgraph/typedef.hh
+        include/lightgraph/strhash.hh
+        include/lightgraph/endian_conversion.hh)
 set(FILES
         ${SOURCE_FILES}
         ${HEADER_FILES})

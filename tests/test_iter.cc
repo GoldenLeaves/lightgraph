@@ -2,7 +2,7 @@
 // Created by tramboo on 2020/3/31.
 //
 
-#include <ldb.hh>
+#include <lightgraph/ldb.hh>
 #include <iostream>
 
 std::string DBPath = "../data/iter_test";
